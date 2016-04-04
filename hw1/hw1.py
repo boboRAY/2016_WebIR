@@ -17,9 +17,13 @@ with open('stoplist', 'r') as f:
 
 total_file_count = 46972
 
+# query = open('queries/query-train.xml', 'r').read()
+# q = xmltodict.parse(query)
+# train_list = q['xml']['topic']
+
 query = open('queries/query-test.xml', 'r').read()
 q = xmltodict.parse(query)
-query_list = q['xml']['topic']
+test_list = q['xml']['topic']
 
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
@@ -42,23 +46,32 @@ for lindex, line in enumerate(inverted_list):
         if(int(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
         term = term1 + term2
-        if re.search('[a-zA-z]', term):
+        if re.search('[a-zA-z0-9]', term):
             continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
 
 
-def get_query_vector(text):
-    vector = {}
+def gram(text):
+    l = []
     for n in range(1, min(3, len(text))):
         for w in range(len(text)-(n-1)):
-            word = text[w:w+n]
-            if word in inverted_dict:
-                idf = inverted_dict[word]['idf']
-                if word in vector:
-                    vector[word] = vector[word] + idf
-                else:
-                    vector[word] = idf
+            l.append(text[w:w+n])
+    v = {}
+    for t in l:
+        if t in v:
+            v[t] += 1
+        else:
+            v[t] = 1
+    return v
+
+
+def unit_vector(qv):
+    vector = {}
+    for word, tf in qv.items():
+        if word in inverted_dict:
+            idf = inverted_dict[word]['idf']
+            vector[word] = tf*idf
 
     # normalize to unit vector
     square_len = 0
@@ -93,14 +106,51 @@ def get_top_k(query, k):
     d = d.most_common(k)
     return d
 
-ans_dict = {}
-for query in query_list:
+# get feedback
+feedback_dict = {}
+e_query = {}
+for query in test_list:
+    e_query[query['number']] = {}
     qt = ''
     for q, t in query.items():
         qt += t
-    narrative = query['narrative']
-    v = get_query_vector(qt)
+    v = gram(qt)
+    v = unit_vector(v)
+    topd = get_top_k(v, 10)
+    for d in topd:
+        doc, s = d
+        l = []
+        if doc in feedback_dict:
+            l = feedback_dict[doc]
+        l.append(query['number'])
+        feedback_dict[doc] = l
+
+
+# expand query term
+for term, d in inverted_dict.items():
+    for docid, tf in d['docID'].items():
+        if docid in feedback_dict:
+            l = feedback_dict[docid]
+            for number in l:
+                e_query[number][term] = tf
+
+# use new vector to get top 100 list
+ans_dict = {}
+for query in test_list:
+    qt = ''
+    for q, t in query.items():
+        qt += t
+    o_q_v = gram(qt)  # original queries vector
+    e_q_v = e_query[query['number']]  # expanded queries vector
+    v = {}
+    for term in e_q_v:
+        if term in o_q_v:
+            v[term] = e_q_v[term] + o_q_v[term]
+        else:
+            v[term] = e_q_v[term]
+    v = unit_vector(v)
     ans_dict[query['number']] = get_top_k(v, 100)
+
 
 ans_f = open('ans.txt', 'w')
 for number, ans_list in ans_dict.items():
