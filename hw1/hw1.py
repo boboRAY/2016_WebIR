@@ -17,14 +17,13 @@ with open('stoplist', 'r') as f:
 
 total_file_count = 46972
 
-# query = open('queries/query-train.xml', 'r').read()
-# q = xmltodict.parse(query)
-# train_list = q['xml']['topic']
+query = open('queries/query-train.xml', 'r').read()
+q = xmltodict.parse(query)
+train_list = q['xml']['topic']
 
 query = open('queries/query-test.xml', 'r').read()
 q = xmltodict.parse(query)
 test_list = q['xml']['topic']
-
 
 
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
@@ -36,23 +35,20 @@ for lindex, line in enumerate(inverted_list):
         if term not in inverted_dict:
             continue
         d = inverted_dict[term]
-        d['docID'][line[0]] = int(line[1])
+        d['docID'][line[0]] = float(line[1])
         inverted_dict[term] = d
     else:
-        df = int(line[2])
+        weight = 1.0
+        df = float(line[2])
         idf = math.log10(total_file_count/df)
         term1 = vocab_list[int(line[0])]
         term2 = ''
         if term1 in stop_list or term2 in stop_list:
             continue
-        if(int(line[1]) != -1):
+        if(float(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
         term = term1 + term2
-        if re.search('[a-zA-Z0-9]', term) is None:
-            pass
-        elif re.search('[0-9]', term):
-            continue
-        elif re.search('[a-zA-Z0-9]', term1) is not None or re.search('[a-zA-Z0-9]', term2) is not None:
+        if re.search('[0-9]', term):
             continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
@@ -98,7 +94,6 @@ def get_vector(s):
     return d
 
 
-
 def unit_vector(qv):
     vector = {}
     for word, tf in qv.items():
@@ -141,36 +136,113 @@ def get_top_k(query, k):
 
 
 # get feedback
-def get_feedback_vector(query):
+def get_feedback_vector(query, weight):
     qt = query['concepts']
     v = get_vector(qt)
     uv = unit_vector(v)
-    topd = get_top_k(uv, 10)
-    for d in topd:
+    rel_d = get_top_k(uv, 10)
+    for d in rel_d:
         doc, s = d
-        fv = get_vector(doc)
+        doc_f = open(doc_list[int(doc)], 'r').read()
+        q = xmltodict.parse(doc_f)
+        trains = q['xml']['doc']['text']['p']
+        doc_s = ''
+        try:
+            for t in trains:
+                doc_s += t
+        except:
+            pass
+        fv = get_vector(doc_s)
         for term, score in fv.items():
+            if re.search('[0-9]', term):
+                continue
+            score *= weight
             if term in v:
                 v[term] += score
             else:
                 v[term] = score
     return v
 
-
-# use new vector to get top 100 list
-ans_dict = {}
-for query in test_list:
-    expanded_vector = get_feedback_vector(query)
-    v = unit_vector(expanded_vector)
-    ans_dict[query['number']] = get_top_k(v, 100)
+with open('queries/ans-train') as f:
+    real_ans = f.read().splitlines()
 
 
-ans_f = open('ans.txt', 'w')
-for number, ans_list in ans_dict.items():
-    for ans in ans_list:
-        docid, rank = ans
-        doc = doc_list[int(docid)]
-        docname = doc.lower().split('/')[3]
-        answer = number[-3:] + ' ' + docname + '\n'
-        ans_f.write(answer)
-ans_f.close()
+def make_ans(ro_w, term_w, k):
+    ans_dict = {}
+    for query in test_list:
+        expanded_vector = get_feedback_vector(query, ro_w)
+        for term, score in expanded_vector.items():
+            if re.search('[a-zA-Z]', term):
+                score = score * term_w
+            elif len(term) == 2:
+                score = score * term_w
+            expanded_vector[term] = score
+        v = unit_vector(expanded_vector)
+        ans_dict[query['number']] = get_top_k(v, k)
+    ans_f = open('ans.txt', 'w')
+    for number, ans_list in ans_dict.items():
+        for ans in ans_list:
+            docid, rank = ans
+            doc = doc_list[int(docid)]
+            docname = doc.lower().split('/')[3]
+            answer = number[-3:] + ' ' + docname + '\n'
+            ans_f.write(answer)
+    ans_f.close()
+
+make_ans(9, 2, 100)
+
+
+# for training
+def get_map(ro_w, term_w, k):
+    # use new vector to get top 100 list
+    ans_dict = {}
+    for query in train_list:
+        expanded_vector = get_feedback_vector(query, ro_w)
+        for term, score in expanded_vector.items():
+            if re.search('[a-zA-Z]', term):
+                score = score * term_w
+            elif len(term) == 2:
+                score = score * term_w
+            expanded_vector[term] = score
+        v = unit_vector(expanded_vector)
+        ans_dict[query['number']] = get_top_k(v, k)
+    # ans_f = open('ans.txt', 'w')
+    ans_list = []
+    scores = []
+    for number, anses in ans_dict.items():
+        count = 0
+        right = 0
+        score = 0
+        for ans in anses:
+            count += 1
+            docid, rank = ans
+            doc = doc_list[int(docid)]
+            docname = doc.lower().split('/')[3]
+            # answer = number[-3:] + ' ' + docname + '\n'
+            answer = number[-3:] + ' ' + docname
+            if answer in real_ans:
+                right += 1
+                score += right/count
+            ans_list.append(answer)
+        score /= k
+        scores.append(score)
+        # ans_f.write(answer)
+    # ans_f.close()
+    average = 0
+    for s in scores:
+        average += s
+    average /= 10
+    return average
+
+
+# train
+# para = {'match': 0}
+# for ro_w in range(1, 10 ,1):
+#     for term_w in np.arange(1.0, 2.1, 0.2):
+#         s = get_map(ro_w, term_w, 20)
+#         print(ro_w, term_w, s)
+#         if s > para['match']:
+#             para['match'] = s
+#             para['ro_w'] = ro_w
+#             para['term_w'] = term_w
+# print(para)
