@@ -25,6 +25,8 @@ query = open('queries/query-test.xml', 'r').read()
 q = xmltodict.parse(query)
 test_list = q['xml']['topic']
 
+
+
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
 inverted_dict = {}
@@ -46,7 +48,11 @@ for lindex, line in enumerate(inverted_list):
         if(int(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
         term = term1 + term2
-        if re.search('[a-zA-z0-9]', term):
+        if re.search('[a-zA-Z0-9]', term) is None:
+            pass
+        elif re.search('[0-9]', term):
+            continue
+        elif re.search('[a-zA-Z0-9]', term1) is not None or re.search('[a-zA-Z0-9]', term2) is not None:
             continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
@@ -64,6 +70,33 @@ def gram(text):
         else:
             v[t] = 1
     return v
+
+
+def get_vector(s):
+    text = ''
+    d = {}
+    flag = False
+    # seperate en and chinese word
+    for c in s:
+        if flag:
+            if re.search('[a-zA-z]', c):
+                text += c
+            else:
+                if text in d:
+                    d[text] += 1
+                else:
+                    d[text] = 1
+                text = ''
+                flag = False
+        else:
+            if re.search('[a-zA-Z]', c):
+                text += c
+                flag = True
+    # gram
+    s = re.sub('[a-zA-Z]', '', s)
+    d = {**gram(s), **d}
+    return d
+
 
 
 def unit_vector(qv):
@@ -106,49 +139,29 @@ def get_top_k(query, k):
     d = d.most_common(k)
     return d
 
+
 # get feedback
-feedback_dict = {}
-e_query = {}
-for query in test_list:
-    e_query[query['number']] = {}
-    qt = ''
-    for q, t in query.items():
-        qt += t
-    v = gram(qt)
-    v = unit_vector(v)
-    topd = get_top_k(v, 10)
+def get_feedback_vector(query):
+    qt = query['concepts']
+    v = get_vector(qt)
+    uv = unit_vector(v)
+    topd = get_top_k(uv, 10)
     for d in topd:
         doc, s = d
-        l = []
-        if doc in feedback_dict:
-            l = feedback_dict[doc]
-        l.append(query['number'])
-        feedback_dict[doc] = l
+        fv = get_vector(doc)
+        for term, score in fv.items():
+            if term in v:
+                v[term] += score
+            else:
+                v[term] = score
+    return v
 
-
-# expand query term
-for term, d in inverted_dict.items():
-    for docid, tf in d['docID'].items():
-        if docid in feedback_dict:
-            l = feedback_dict[docid]
-            for number in l:
-                e_query[number][term] = tf
 
 # use new vector to get top 100 list
 ans_dict = {}
 for query in test_list:
-    qt = ''
-    for q, t in query.items():
-        qt += t
-    o_q_v = gram(qt)  # original queries vector
-    e_q_v = e_query[query['number']]  # expanded queries vector
-    v = {}
-    for term in e_q_v:
-        if term in o_q_v:
-            v[term] = e_q_v[term] + o_q_v[term]
-        else:
-            v[term] = e_q_v[term]
-    v = unit_vector(v)
+    expanded_vector = get_feedback_vector(query)
+    v = unit_vector(expanded_vector)
     ans_dict[query['number']] = get_top_k(v, 100)
 
 
