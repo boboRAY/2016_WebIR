@@ -4,6 +4,7 @@ import collections
 import re
 import numpy as np
 
+
 with open('model/inverted-file', 'r') as f:
     inverted_list = f.readlines()
 
@@ -34,9 +35,13 @@ for i in range(0, len(doc_list)):
 del_voc = []
 del_voc = del_voc + list(range(1900, 1935)) + list(range(1936, 1995)) + list(range(12334,  12363)) + list(range(12365, 12451)) + list(range(12452, 12454))
 
+
+inverted_dict = {}
+AVG_DOC_LEN = 0
+DOC_LEN_LIST = [0]*len(doc_list)
+doc_vector_lens = [None]*len(doc_vector_list)
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
-inverted_dict = {}
 for lindex, line in enumerate(inverted_list):
     line = line.split()
     if(len(line) == 2):
@@ -59,30 +64,35 @@ for lindex, line in enumerate(inverted_list):
         term2 = ''
         if(float(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
-        elif term1.isdigit():
+            if re.search('[a-zA-Z]', term1) or re.search('[a-zA-Z]', term2):
+                continue
+        if term1.isdigit() or term2.isdigit():
             continue
-        else:
-            pass
-        if term1 in stop_list or term2 in stop_list:
-            continue
-        if re.search('[a-zA-Z]', term1) or re.search('[a-zA-Z]', term2):
+        if term1 in stop_list and term2 in stop_list:
             continue
         term = term1 + term2
         term = term.lower()
-        # if len(term) < 2:
-        #     continue
-        # if re.search('[0-9]', term):
+        # if len(term) > 2:
         #     continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
 
-
-doc_vector_lens = [None]*len(doc_vector_list)
+# get doc length and vector length
 for idx, dv in enumerate(doc_vector_list):
     dlen = 0
     for term, tf in dv.items():
+        DOC_LEN_LIST[idx] += tf
         dlen += tf ** 2
     doc_vector_lens[idx] = math.sqrt(dlen)
+for dlen in DOC_LEN_LIST:
+    AVG_DOC_LEN += dlen
+AVG_DOC_LEN /= total_file_count
+
+
+# okapi
+def okapi(b, tf, doc_id):
+    doc_len = DOC_LEN_LIST[doc_id]
+    tf = tf / (1 - b + b * doc_len / AVG_DOC_LEN)
 
 
 def gram(text):
@@ -144,12 +154,13 @@ def unit_vector(qv):
     return vector
 
 
-def get_top_k(qv, k):
+def get_top_k(oka_w , qv, k):
     rank_dict = {}
     for term, value in qv.items():
         idf = inverted_dict[term]['idf']
         docs = inverted_dict[term]['docID']
         for docid, tf in docs.items():
+            tf = okapi(oka_w, tf, docid)
             tfidf = idf*tf
             d = {}
             if docid in rank_dict:
@@ -164,10 +175,9 @@ def get_top_k(qv, k):
 
 
 # get feedback
-def get_feedback_vector(query, weight, k):
-    v = get_vector(query)
+def get_feedback_vector(oka_w, v, weight, k):
     uv = unit_vector(v)
-    rel_d = get_top_k(uv, k)
+    rel_d = get_top_k(oka_w, uv, k)
     for d in rel_d:
         doc_id, s = d
         docv = doc_vector_list[int(doc_id)]
@@ -181,20 +191,27 @@ def get_feedback_vector(query, weight, k):
     return v
 
 
-def make_ans(ro_w, term_w, rel_k, k):
+def make_ans(oka_w, ro_w, term_w, rel_k, k):
     ans_dict = {}
     for raw_query in test_list:
+        print('get query vector')
         query = raw_query['concepts']
-        expanded_vector = get_feedback_vector(query, ro_w, rel_k)
-        for term, score in expanded_vector.items():
-            if re.search('[a-zA-Z]', term):
-                score = score * term_w
-            elif len(term) == 2:
-                score = score * term_w
-            expanded_vector[term] = score
+        queryv = get_vector(query)
+        print('get feedback vector')
+        expanded_vector = get_feedback_vector(oka_w, queryv, ro_w, rel_k)
+        print('weighting for term')
+        # for term, score in expanded_vector.items():
+            # if re.search('[a-zA-Z]', term):
+            #     score = score * term_w
+            # elif len(term) == 2:
+            #     score = score * term_w
+            # expanded_vector[term] = score
+        print("unit vector")
         v = unit_vector(expanded_vector)
-        ans_dict[raw_query['number']] = get_top_k(v, k)
+        print('get top k')
+        ans_dict[raw_query['number']] = get_top_k(oka_w, v, k)
     ans_f = open('ans.txt', 'w')
+    print('write answer')
     for number, ans_list in ans_dict.items():
         for ans in ans_list:
             docid, rank = ans
@@ -204,8 +221,13 @@ def make_ans(ro_w, term_w, rel_k, k):
             ans_f.write(answer)
     ans_f.close()
 
-# make_ans(5, 2, 10, 100)
 
+def main():
+    make_ans(0.5, 5, 2, 10, 100)
+
+
+# if __name__ == '__main__':
+#     main()
 
 # for training
 
@@ -213,22 +235,19 @@ with open('queries/ans-train') as f:
     real_ans = f.read().splitlines()
 
 
-def get_map(ro_w, term_w, rel_k, k):
+def get_map(oka_w, ro_w, term_w, rel_k, k):
     # use new vector to get top 100 list
     ans_dict = {}
     for raw_query in train_list:
         query = raw_query['concepts']
         expanded_vector = get_feedback_vector(query, ro_w, rel_k)
         for term, score in expanded_vector.items():
-            if re.search('[a-zA-Z]', term):
-                score = score * term_w
-            elif len(term) == 2:
+            if len(term) >= 2:
                 score = score * term_w
             expanded_vector[term] = score
         v = unit_vector(expanded_vector)
-        ans_dict[raw_query['number']] = get_top_k(v, k)
+        ans_dict[raw_query['number']] = get_top_k(oka_w, v, k)
     # ans_f = open('ans.txt', 'w')
-    ans_list = []
     scores = []
     for number, anses in ans_dict.items():
         count = 0
@@ -239,16 +258,12 @@ def get_map(ro_w, term_w, rel_k, k):
             docid, rank = ans
             doc = doc_list[int(docid)]
             docname = doc.lower().split('/')[3]
-            # answer = number[-3:] + ' ' + docname + '\n'
             answer = number[-3:] + ' ' + docname
             if answer in real_ans:
                 right += 1
                 score += right/count
-            ans_list.append(answer)
         score /= right
         scores.append(score)
-        # ans_f.write(answer)
-    # ans_f.close()
     average = 0
     for s in scores:
         average += s
@@ -256,16 +271,16 @@ def get_map(ro_w, term_w, rel_k, k):
     return average
 
 
-# train
+# # train
 para = {'match': 0}
-for ro_w in range(5, 10, 1):
+for ro_w in range(1, 6, 1):
     for term_w in np.arange(1.0, 2.1, 0.2):
-        for rel_k in range(10, 20, 1):
-            s = get_map(ro_w, term_w, 10, 10)
+        for okapi_b in np.arange(0.1, 1, 0.1):
+            s = get_map(okapi_b, ro_w, term_w, 10, 10)
             print(ro_w, term_w, s)
             if s > para['match']:
                 para['match'] = s
                 para['ro_w'] = ro_w
                 para['term_w'] = term_w
-                para['rel_k'] = rel_k
+                para['okapi_b'] = okapi_b
 print(para)
