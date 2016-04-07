@@ -94,6 +94,12 @@ for dlen in DOC_LEN_LIST:
 AVG_DOC_LEN /= total_file_count
 
 
+# okapi
+def okapi(b, tf, doc_id):
+    doc_len = DOC_LEN_LIST[doc_id]
+    tf = tf / (1 - b + b * doc_len / AVG_DOC_LEN)
+
+
 def gram(text):
     l = []
     for n in range(2, min(3, len(text))):
@@ -153,14 +159,7 @@ def unit_vector(qv):
     return vector
 
 
-# okapi
-def okapi(b, tf, doc_id):
-    doc_len = DOC_LEN_LIST[doc_id]
-    tf = tf / (1 - b + b * doc_len / AVG_DOC_LEN)
-    return tf
-
-
-def get_top_k(oka_w, qv, k):
+def get_top_k(oka_w , qv, k):
     rank_dict = {}
     for term, value in qv.items():
         idf = inverted_dict[term]['idf']
@@ -208,6 +207,14 @@ def make_ans(oka_w, ro_w, term_w, rel_k, k):
             if re.search('[a-zA-Z]', term):
                 score = score * term_w
             elif len(term) == 2:
+                score = score * term_w
+            expanded_vector[term] = score
+        v = unit_vector(expanded_vector)
+        expanded_vector = get_feedback_vector(oka_w, queryv, ro_w, rel_k)
+        for term, score in expanded_vector.items():
+            if re.search('[a-zA-Z]', term):
+                score = score * term_w
+            elif len(term) >= 2:
                 score = score * term_w
             expanded_vector[term] = score
         v = unit_vector(expanded_vector)
