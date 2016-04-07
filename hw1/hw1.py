@@ -2,6 +2,7 @@ import math
 import xmltodict
 import collections
 import re
+import numpy as np
 
 with open('model/inverted-file', 'r') as f:
     inverted_list = f.readlines()
@@ -26,37 +27,67 @@ q = xmltodict.parse(query)
 test_list = q['xml']['topic']
 
 
+doc_vector_list = [0]*len(doc_list)
+for i in range(0, len(doc_list)):
+    doc_vector_list[i] = {}
+
+del_voc = []
+del_voc = del_voc + list(range(1900, 1935)) + list(range(1936, 1995)) + list(range(12334,  12363)) + list(range(12365, 12451)) + list(range(12452, 12454))
+
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
 inverted_dict = {}
 for lindex, line in enumerate(inverted_list):
     line = line.split()
     if(len(line) == 2):
+        # some terms were abandoned
         if term not in inverted_dict:
             continue
         d = inverted_dict[term]
+        doc_id = int(line[0])
+        tf = float(line[1])
         d['docID'][line[0]] = float(line[1])
+        v = doc_vector_list[doc_id]
+        v[term] = tf
         inverted_dict[term] = d
     else:
-        weight = 1.0
+        if int(line[0]) in del_voc or int(line[1]) in del_voc:
+            continue
         df = float(line[2])
         idf = math.log10(total_file_count/df)
         term1 = vocab_list[int(line[0])]
         term2 = ''
-        if term1 in stop_list or term2 in stop_list:
-            continue
         if(float(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
-        term = term1 + term2
-        if re.search('[0-9]', term):
+        elif term1.isdigit():
             continue
+        else:
+            pass
+        if term1 in stop_list or term2 in stop_list:
+            continue
+        if re.search('[a-zA-Z]', term1) or re.search('[a-zA-Z]', term2):
+            continue
+        term = term1 + term2
+        term = term.lower()
+        # if len(term) < 2:
+        #     continue
+        # if re.search('[0-9]', term):
+        #     continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
 
 
+doc_vector_lens = [None]*len(doc_vector_list)
+for idx, dv in enumerate(doc_vector_list):
+    dlen = 0
+    for term, tf in dv.items():
+        dlen += tf ** 2
+    doc_vector_lens[idx] = math.sqrt(dlen)
+
+
 def gram(text):
     l = []
-    for n in range(1, min(3, len(text))):
+    for n in range(2, min(3, len(text))):
         for w in range(len(text)-(n-1)):
             l.append(text[w:w+n])
     v = {}
@@ -71,23 +102,24 @@ def gram(text):
 def get_vector(s):
     text = ''
     d = {}
-    flag = False
-    # seperate en and chinese word
+    was_en = False
+    # seperate English and Chinese word
     for c in s:
-        if flag:
+        if was_en:
             if re.search('[a-zA-z]', c):
                 text += c
             else:
+                text = text.lower()
                 if text in d:
                     d[text] += 1
                 else:
                     d[text] = 1
                 text = ''
-                flag = False
+                was_en = False
         else:
             if re.search('[a-zA-Z]', c):
                 text += c
-                flag = True
+                was_en = True
     # gram
     s = re.sub('[a-zA-Z]', '', s)
     d = {**gram(s), **d}
@@ -96,6 +128,7 @@ def get_vector(s):
 
 def unit_vector(qv):
     vector = {}
+    # make feature vector with tfidf
     for word, tf in qv.items():
         if word in inverted_dict:
             idf = inverted_dict[word]['idf']
@@ -111,66 +144,48 @@ def unit_vector(qv):
     return vector
 
 
-def get_top_k(query, k):
+def get_top_k(qv, k):
     rank_dict = {}
-    doc_len_dict = {}
-    for term, value in query.items():
-        if term not in inverted_dict:
-            continue
+    for term, value in qv.items():
         idf = inverted_dict[term]['idf']
         docs = inverted_dict[term]['docID']
         for docid, tf in docs.items():
             tfidf = idf*tf
             d = {}
             if docid in rank_dict:
-                doc_len_dict[docid] = doc_len_dict[docid] + tfidf**2
                 rank_dict[docid] = rank_dict[docid] + value*tfidf
             else:
-                doc_len_dict[docid] = tfidf ** 2
                 rank_dict[docid] = value*tfidf
-    for docid, score in rank_dict.items():
-        rank_dict[docid] = score/math.sqrt(doc_len_dict[docid])
+    for doc_id, score in rank_dict.items():
+        rank_dict[doc_id] = score/doc_vector_lens[int(doc_id)]
     d = collections.Counter(rank_dict)
     d = d.most_common(k)
     return d
 
 
 # get feedback
-def get_feedback_vector(query, weight):
-    qt = query['concepts']
-    v = get_vector(qt)
+def get_feedback_vector(query, weight, k):
+    v = get_vector(query)
     uv = unit_vector(v)
-    rel_d = get_top_k(uv, 10)
+    rel_d = get_top_k(uv, k)
     for d in rel_d:
-        doc, s = d
-        doc_f = open(doc_list[int(doc)], 'r').read()
-        q = xmltodict.parse(doc_f)
-        trains = q['xml']['doc']['text']['p']
-        doc_s = ''
-        try:
-            for t in trains:
-                doc_s += t
-        except:
-            pass
-        fv = get_vector(doc_s)
-        for term, score in fv.items():
-            if re.search('[0-9]', term):
-                continue
+        doc_id, s = d
+        docv = doc_vector_list[int(doc_id)]
+        for term, score in docv.items():
             score *= weight
+            score /= k
             if term in v:
                 v[term] += score
             else:
                 v[term] = score
     return v
 
-with open('queries/ans-train') as f:
-    real_ans = f.read().splitlines()
 
-
-def make_ans(ro_w, term_w, k):
+def make_ans(ro_w, term_w, rel_k, k):
     ans_dict = {}
-    for query in test_list:
-        expanded_vector = get_feedback_vector(query, ro_w)
+    for raw_query in test_list:
+        query = raw_query['concepts']
+        expanded_vector = get_feedback_vector(query, ro_w, rel_k)
         for term, score in expanded_vector.items():
             if re.search('[a-zA-Z]', term):
                 score = score * term_w
@@ -178,7 +193,7 @@ def make_ans(ro_w, term_w, k):
                 score = score * term_w
             expanded_vector[term] = score
         v = unit_vector(expanded_vector)
-        ans_dict[query['number']] = get_top_k(v, k)
+        ans_dict[raw_query['number']] = get_top_k(v, k)
     ans_f = open('ans.txt', 'w')
     for number, ans_list in ans_dict.items():
         for ans in ans_list:
@@ -189,15 +204,21 @@ def make_ans(ro_w, term_w, k):
             ans_f.write(answer)
     ans_f.close()
 
-make_ans(9, 2, 100)
+# make_ans(5, 2, 10, 100)
 
 
 # for training
-def get_map(ro_w, term_w, k):
+
+with open('queries/ans-train') as f:
+    real_ans = f.read().splitlines()
+
+
+def get_map(ro_w, term_w, rel_k, k):
     # use new vector to get top 100 list
     ans_dict = {}
-    for query in train_list:
-        expanded_vector = get_feedback_vector(query, ro_w)
+    for raw_query in train_list:
+        query = raw_query['concepts']
+        expanded_vector = get_feedback_vector(query, ro_w, rel_k)
         for term, score in expanded_vector.items():
             if re.search('[a-zA-Z]', term):
                 score = score * term_w
@@ -205,7 +226,7 @@ def get_map(ro_w, term_w, k):
                 score = score * term_w
             expanded_vector[term] = score
         v = unit_vector(expanded_vector)
-        ans_dict[query['number']] = get_top_k(v, k)
+        ans_dict[raw_query['number']] = get_top_k(v, k)
     # ans_f = open('ans.txt', 'w')
     ans_list = []
     scores = []
@@ -224,25 +245,27 @@ def get_map(ro_w, term_w, k):
                 right += 1
                 score += right/count
             ans_list.append(answer)
-        score /= k
+        score /= right
         scores.append(score)
         # ans_f.write(answer)
     # ans_f.close()
     average = 0
     for s in scores:
         average += s
-    average /= 10
+    average /= k
     return average
 
 
 # train
-# para = {'match': 0}
-# for ro_w in range(1, 10 ,1):
-#     for term_w in np.arange(1.0, 2.1, 0.2):
-#         s = get_map(ro_w, term_w, 20)
-#         print(ro_w, term_w, s)
-#         if s > para['match']:
-#             para['match'] = s
-#             para['ro_w'] = ro_w
-#             para['term_w'] = term_w
-# print(para)
+para = {'match': 0}
+for ro_w in range(5, 10, 1):
+    for term_w in np.arange(1.0, 2.1, 0.2):
+        for rel_k in range(10, 20, 1):
+            s = get_map(ro_w, term_w, 10, 10)
+            print(ro_w, term_w, s)
+            if s > para['match']:
+                para['match'] = s
+                para['ro_w'] = ro_w
+                para['term_w'] = term_w
+                para['rel_k'] = rel_k
+print(para)
