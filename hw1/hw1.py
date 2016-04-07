@@ -77,8 +77,6 @@ for lindex, line in enumerate(inverted_list):
             continue
         term = term1 + term2
         term = term.lower()
-        # if len(term) > 2:
-        #     continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
 
@@ -207,14 +205,6 @@ def make_ans(oka_w, ro_w, term_w, rel_k, k):
         for term, score in expanded_vector.items():
             if re.search('[a-zA-Z]', term):
                 score = score * term_w
-            elif len(term) == 2:
-                score = score * term_w
-            expanded_vector[term] = score
-        v = unit_vector(expanded_vector)
-        expanded_vector = get_feedback_vector(oka_w, queryv, ro_w, rel_k)
-        for term, score in expanded_vector.items():
-            if re.search('[a-zA-Z]', term):
-                score = score * term_w
             elif len(term) >= 2:
                 score = score * term_w
             expanded_vector[term] = score
@@ -232,7 +222,7 @@ def make_ans(oka_w, ro_w, term_w, rel_k, k):
 
 
 def main():
-    make_ans(0.5, 5, 2, 10, 100)
+    make_ans(0.5, 1, 1, 10, 100)
 
 
 # if __name__ == '__main__':
@@ -252,7 +242,9 @@ def get_map(oka_w, ro_w, term_w, rel_k, k):
         queryv = get_vector(query)
         expanded_vector = get_feedback_vector(oka_w, queryv, ro_w, rel_k)
         for term, score in expanded_vector.items():
-            if len(term) >= 2:
+            if re.search('[a-zA-Z]', term):
+                score = score * term_w
+            elif len(term) >= 2:
                 score = score * term_w
             expanded_vector[term] = score
         v = unit_vector(expanded_vector)
@@ -282,15 +274,15 @@ def get_map(oka_w, ro_w, term_w, rel_k, k):
 
 
 # # # train
-para = {'match': 0}
-for ro_w in range(1, 10, 1):
-    for term_w in np.arange(1.0, 2.1, 0.2):
-        for okapi_b in np.arange(0.1, 1, 0.1):
-            s = get_map(okapi_b, ro_w, term_w, 20, 10)
-            print(ro_w, term_w, okapi_b, s)
-            if s > para['match']:
-                para['match'] = s
-                para['ro_w'] = ro_w
-                para['term_w'] = term_w
-                para['okapi_b'] = okapi_b
-print(para)
+# para = {'match': 0}
+# for ro_w in range(1, 10, 1):
+#     for term_w in np.arange(1.0, 2.1, 0.2):
+#         for okapi_b in np.arange(0.1, 1, 0.1):
+#             s = get_map(okapi_b, ro_w, term_w, 20, 10)
+#             print(ro_w, term_w, okapi_b, s)
+#             if s > para['match']:
+#                 para['match'] = s
+#                 para['ro_w'] = ro_w
+#                 para['term_w'] = term_w
+#                 para['okapi_b'] = okapi_b
+# print(para)
