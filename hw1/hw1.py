@@ -98,6 +98,7 @@ AVG_DOC_LEN /= total_file_count
 def okapi(b, tf, doc_id):
     doc_len = DOC_LEN_LIST[doc_id]
     tf = tf / (1 - b + b * doc_len / AVG_DOC_LEN)
+    return tf
 
 
 def gram(text):
@@ -235,7 +236,7 @@ def main():
 
 
 # if __name__ == '__main__':
-#     main()
+main()
 
 # for training
 
@@ -282,11 +283,11 @@ def get_map(oka_w, ro_w, term_w, rel_k, k):
 
 # # # train
 para = {'match': 0}
-for ro_w in range(1, 6, 1):
+for ro_w in range(1, 10, 1):
     for term_w in np.arange(1.0, 2.1, 0.2):
         for okapi_b in np.arange(0.1, 1, 0.1):
-            s = get_map(okapi_b, ro_w, term_w, 10, 10)
-            print(ro_w, term_w, s)
+            s = get_map(okapi_b, ro_w, term_w, 20, 10)
+            print(ro_w, term_w, okapi_b, s)
             if s > para['match']:
                 para['match'] = s
                 para['ro_w'] = ro_w
