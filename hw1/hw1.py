@@ -50,7 +50,7 @@ for lindex, line in enumerate(inverted_list):
         tf = float(line[1])
         d['docID'][line[0]] = float(line[1])
         v = doc_vector_list[doc_id]
-        if len(term) >= 2:
+        if len(term) > 1:
             tf *= 2
         v[term] = tf
         inverted_dict[term] = d
@@ -65,13 +65,12 @@ for lindex, line in enumerate(inverted_list):
             term2 = vocab_list[int(line[1])]
             if term1.isdigit() and term2.isdigit():
                 continue
-        elif term1.isdigit():
-            continue
+            if re.search('[a-zA-Z]', term1) or re.search('[a-zA-Z]', term2):
+                continue
         else:
-            pass
-        if term1 in stop_list or term2 in stop_list:
-            continue
-        if re.search('[a-zA-Z]', term1) or re.search('[a-zA-Z]', term2):
+            if term1.isdigit():
+                continue
+        if term1 in stop_list and term2 in stop_list:
             continue
         term = term1 + term2
         term = term.lower()
@@ -79,12 +78,13 @@ for lindex, line in enumerate(inverted_list):
                                'docID': {}}
 
 
-doc_vector_lens = [None]*len(doc_vector_list)
-for idx, dv in enumerate(doc_vector_list):
+def get_doc_len(doc_id):
+    dv = doc_vector_list[doc_id]
     dlen = 0
     for term, tf in dv.items():
+        dv[term] = tf
         dlen += tf ** 2
-    doc_vector_lens[idx] = math.sqrt(dlen)
+    return math.sqrt(dlen)
 
 
 def gram(text):
@@ -102,6 +102,7 @@ def gram(text):
 
 
 def get_vector(s):
+    s += ' '
     text = ''
     d = {}
     was_en = False
@@ -123,7 +124,7 @@ def get_vector(s):
                 text += c
                 was_en = True
     # gram
-    s = re.sub('[a-zA-Z]', '', s)
+    s = re.sub('[a-zA-Z0-9]', '', s)
     d = {**gram(s), **d}
     return d
 
@@ -159,7 +160,7 @@ def get_top_k(qv, k):
             else:
                 rank_dict[docid] = value*tfidf
     for doc_id, score in rank_dict.items():
-        rank_dict[doc_id] = score/doc_vector_lens[int(doc_id)]
+        rank_dict[doc_id] = score/get_doc_len[int(doc_id)]
     d = collections.Counter(rank_dict)
     d = d.most_common(k)
     return d
@@ -167,13 +168,14 @@ def get_top_k(qv, k):
 
 # get feedback
 def get_feedback_vector(query, weight, k):
-    v = get_vector(query)
-    uv = unit_vector(v)
-    rel_d = get_top_k(uv, k)
+    qv = get_vector(query)
+    uqv = unit_vector(qv)
+    rel_d = get_top_k(uqv, k)
     for d in rel_d:
         doc_id, s = d
         docv = doc_vector_list[int(doc_id)]
-        for term, score in docv.items():
+        udocv = unit_vector(docv)
+        for term, score in udocv.items():
             score *= weight
             score /= k
             if term in v:
@@ -194,8 +196,8 @@ def make_ans(ro_w, term_w, rel_k, k):
         #     elif len(term) == 2:
         #         score = score * term_w
         #     expanded_vector[term] = score
-        v = unit_vector(expanded_vector)
-        ans_dict[raw_query['number']] = get_top_k(v, k)
+        eqv = unit_vector(expanded_vector)
+        ans_dict[raw_query['number']] = get_top_k(eqv, k)
     ans_f = open('ans.txt', 'w')
     for number, ans_list in ans_dict.items():
         for ans in ans_list:
