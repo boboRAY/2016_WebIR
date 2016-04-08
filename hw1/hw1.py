@@ -5,8 +5,8 @@ import re
 import numpy as np
 
 
-RO_W = 0
-TERM_W = 0
+RO_W = 0.8
+TERM_W = 1
 QUERY_K = 100
 REL_K = 10
 
@@ -108,7 +108,11 @@ def unit_vector(qv):
     length = math.sqrt(square_len)
     for term, value in qv.items():
         qv[term] = value/length
-    return qv 
+    return qv
+
+
+for idx, docv in enumerate(doc_vector_list()):
+    doc_vector_list[idx] = unit_vector(docv)
 
 
 def get_vector(s):
@@ -145,19 +149,14 @@ def get_vector(s):
 
 def get_top_k(qv, k):
     rank_dict = {}
-    doc_len_dict = {}
     for term, value in qv.items():
         docs = inverted_dict[term]['docID']
         for docid, tfidf in docs.items():
             d = {}
             if docid in rank_dict:
                 rank_dict[docid] += value * tfidf
-                doc_len_dict[docid] += tfidf ** 2
             else:
                 rank_dict[docid] = value * tfidf
-                doc_len_dict[docid] = tfidf ** 2
-    for doc_id, score in rank_dict.items():
-        rank_dict[doc_id] = score/math.sqrt(doc_len_dict[doc_id])
     d = collections.Counter(rank_dict)
     d = d.most_common(k)
     return d
@@ -201,11 +200,6 @@ def make_ans():
 
 
 def main():
-    global RO_W, TERM_W, REL_K, K
-    RO_W = 1.5
-    TERM_W = 2
-    REL_K = 10
-    K = 100
     make_ans()
 
 if __name__ == '__main__':
