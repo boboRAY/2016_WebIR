@@ -32,7 +32,9 @@ for i in range(0, len(doc_list)):
     doc_vector_list[i] = {}
 
 del_voc = []
-del_voc = del_voc + list(range(1900, 1935)) + list(range(1936, 1995)) + list(range(12334,  12363)) + list(range(12365, 12451)) + list(range(12452, 12454))
+del_voc = del_voc + list(range(1900, 1935)) + list(range(1936, 1995)) +\
+          list(range(12334,  12363)) + list(range(12365, 12451)) +\
+          list(range(12452, 12454))
 
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
@@ -48,6 +50,8 @@ for lindex, line in enumerate(inverted_list):
         tf = float(line[1])
         d['docID'][line[0]] = float(line[1])
         v = doc_vector_list[doc_id]
+        if len(term) >= 2:
+            tf *= 2
         v[term] = tf
         inverted_dict[term] = d
     else:
@@ -59,6 +63,8 @@ for lindex, line in enumerate(inverted_list):
         term2 = ''
         if(float(line[1]) != -1):
             term2 = vocab_list[int(line[1])]
+            if term1.isdigit() and term2.isdigit():
+                continue
         elif term1.isdigit():
             continue
         else:
@@ -69,10 +75,6 @@ for lindex, line in enumerate(inverted_list):
             continue
         term = term1 + term2
         term = term.lower()
-        # if len(term) < 2:
-        #     continue
-        # if re.search('[0-9]', term):
-        #     continue
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
 
@@ -186,12 +188,12 @@ def make_ans(ro_w, term_w, rel_k, k):
     for raw_query in test_list:
         query = raw_query['concepts']
         expanded_vector = get_feedback_vector(query, ro_w, rel_k)
-        for term, score in expanded_vector.items():
-            if re.search('[a-zA-Z]', term):
-                score = score * term_w
-            elif len(term) == 2:
-                score = score * term_w
-            expanded_vector[term] = score
+        # for term, score in expanded_vector.items():
+        #     if re.search('[a-zA-Z]', term):
+        #         score = score * term_w
+        #     elif len(term) == 2:
+        #         score = score * term_w
+        #     expanded_vector[term] = score
         v = unit_vector(expanded_vector)
         ans_dict[raw_query['number']] = get_top_k(v, k)
     ans_f = open('ans.txt', 'w')
@@ -204,68 +206,68 @@ def make_ans(ro_w, term_w, rel_k, k):
             ans_f.write(answer)
     ans_f.close()
 
-# make_ans(5, 2, 10, 100)
+make_ans(5, 2, 10, 100)
 
 
 # for training
 
-with open('queries/ans-train') as f:
-    real_ans = f.read().splitlines()
+# with open('queries/ans-train') as f:
+#     real_ans = f.read().splitlines()
 
 
-def get_map(ro_w, term_w, rel_k, k):
-    # use new vector to get top 100 list
-    ans_dict = {}
-    for raw_query in train_list:
-        query = raw_query['concepts']
-        expanded_vector = get_feedback_vector(query, ro_w, rel_k)
-        for term, score in expanded_vector.items():
-            if re.search('[a-zA-Z]', term):
-                score = score * term_w
-            elif len(term) == 2:
-                score = score * term_w
-            expanded_vector[term] = score
-        v = unit_vector(expanded_vector)
-        ans_dict[raw_query['number']] = get_top_k(v, k)
-    # ans_f = open('ans.txt', 'w')
-    ans_list = []
-    scores = []
-    for number, anses in ans_dict.items():
-        count = 0
-        right = 0
-        score = 0
-        for ans in anses:
-            count += 1
-            docid, rank = ans
-            doc = doc_list[int(docid)]
-            docname = doc.lower().split('/')[3]
-            # answer = number[-3:] + ' ' + docname + '\n'
-            answer = number[-3:] + ' ' + docname
-            if answer in real_ans:
-                right += 1
-                score += right/count
-            ans_list.append(answer)
-        score /= right
-        scores.append(score)
-        # ans_f.write(answer)
-    # ans_f.close()
-    average = 0
-    for s in scores:
-        average += s
-    average /= k
-    return average
+# def get_map(ro_w, term_w, rel_k, k):
+#     # use new vector to get top 100 list
+#     ans_dict = {}
+#     for raw_query in train_list:
+#         query = raw_query['concepts']
+#         expanded_vector = get_feedback_vector(query, ro_w, rel_k)
+#         for term, score in expanded_vector.items():
+#             if re.search('[a-zA-Z]', term):
+#                 score = score * term_w
+#             elif len(term) == 2:
+#                 score = score * term_w
+#             expanded_vector[term] = score
+#         v = unit_vector(expanded_vector)
+#         ans_dict[raw_query['number']] = get_top_k(v, k)
+#     # ans_f = open('ans.txt', 'w')
+#     ans_list = []
+#     scores = []
+#     for number, anses in ans_dict.items():
+#         count = 0
+#         right = 0
+#         score = 0
+#         for ans in anses:
+#             count += 1
+#             docid, rank = ans
+#             doc = doc_list[int(docid)]
+#             docname = doc.lower().split('/')[3]
+#             # answer = number[-3:] + ' ' + docname + '\n'
+#             answer = number[-3:] + ' ' + docname
+#             if answer in real_ans:
+#                 right += 1
+#                 score += right/count
+#             ans_list.append(answer)
+#         score /= right
+#         scores.append(score)
+#         # ans_f.write(answer)
+#     # ans_f.close()
+#     average = 0
+#     for s in scores:
+#         average += s
+#     average /= k
+#     return average
 
 
-# train
-para = {'match': 0}
-for ro_w in range(5, 10, 1):
-    for term_w in np.arange(1.0, 2.1, 0.2):
-        for rel_k in range(10, 20, 1):
-            s = get_map(ro_w, term_w, 10, 10)
-            print(ro_w, term_w, s)
-            if s > para['match']:
-                para['match'] = s
-                para['ro_w'] = ro_w
-                para['term_w'] = term_w
-                para['rel_k'] = rel_k
-print(para)
+# # train
+# para = {'match': 0}
+# for ro_w in range(5, 10, 1):
+#     for term_w in np.arange(1.0, 2.1, 0.2):
+#         for rel_k in range(10, 20, 1):
+#             s = get_map(ro_w, term_w, 10, 10)
+#             print(ro_w, term_w, s)
+#             if s > para['match']:
+#                 para['match'] = s
+#                 para['ro_w'] = ro_w
+#                 para['term_w'] = term_w
+#                 para['rel_k'] = rel_k
+# print(para)
