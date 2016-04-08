@@ -4,6 +4,13 @@ import collections
 import re
 import numpy as np
 
+
+RO_W = 0
+TERM_W = 0
+QUERY_K = 100
+REL_K = 10
+
+
 with open('model/inverted-file', 'r') as f:
     inverted_list = f.readlines()
 
@@ -15,7 +22,6 @@ with open('model/file-list', 'r') as f:
 
 with open('stoplist', 'r') as f:
     stop_list = f.read().splitlines()
-
 total_file_count = 46972
 
 query = open('queries/query-train.xml', 'r').read()
@@ -36,6 +42,7 @@ del_voc = del_voc + list(range(1900, 1935)) + list(range(1936, 1995)) +\
           list(range(12334,  12363)) + list(range(12365, 12451)) +\
           list(range(12452, 12454))
 
+
 # make inverted_dict: {term : 'docID' : { docID : tf}, 'idf' : idf}
 term = ''
 inverted_dict = {}
@@ -48,11 +55,11 @@ for lindex, line in enumerate(inverted_list):
         d = inverted_dict[term]
         doc_id = int(line[0])
         tf = float(line[1])
-        d['docID'][line[0]] = float(line[1])
-        v = doc_vector_list[doc_id]
         if len(term) > 1:
-            tf *= 2
-        v[term] = tf
+            tf *= TERM_W
+        d['docID'][line[0]] = tf
+        v = doc_vector_list[doc_id]
+        v[term] = tf * inverted_dict[term]['idf']
         inverted_dict[term] = d
     else:
         if int(line[0]) in del_voc or int(line[1]) in del_voc:
@@ -76,15 +83,7 @@ for lindex, line in enumerate(inverted_list):
         term = term.lower()
         inverted_dict[term] = {'idf': idf,
                                'docID': {}}
-
-
-def get_doc_len(doc_id):
-    dv = doc_vector_list[doc_id]
-    dlen = 0
-    for term, tf in dv.items():
-        dv[term] = tf
-        dlen += tf ** 2
-    return math.sqrt(dlen)
+print('Inverted_Dict finished')
 
 
 def gram(text):
@@ -95,10 +94,21 @@ def gram(text):
     v = {}
     for t in l:
         if t in v:
-            v[t] += 1
+            v[t] += 1.0
         else:
-            v[t] = 1
+            v[t] = 1.0
     return v
+
+
+def unit_vector(qv):
+    # normalize to unit vector
+    square_len = 0
+    for term, value in qv.items():
+        square_len += value ** 2
+    length = math.sqrt(square_len)
+    for term, value in qv.items():
+        qv[term] = value/length
+    return qv 
 
 
 def get_vector(s):
@@ -126,78 +136,59 @@ def get_vector(s):
     # gram
     s = re.sub('[a-zA-Z0-9]', '', s)
     d = {**gram(s), **d}
-    return d
-
-
-def unit_vector(qv):
-    vector = {}
-    # make feature vector with tfidf
-    for word, tf in qv.items():
-        if word in inverted_dict:
-            idf = inverted_dict[word]['idf']
-            vector[word] = tf*idf
-
-    # normalize to unit vector
-    square_len = 0
-    for term, value in vector.items():
-        square_len += value ** 2
-    length = math.sqrt(square_len)
-    for term, value in vector.items():
-        vector[term] = value/length
-    return vector
+    fd = {}
+    for term, tf in d.items():
+        if term in inverted_dict:
+            fd[term] = tf * inverted_dict[term]['idf']
+    return unit_vector(fd)
 
 
 def get_top_k(qv, k):
     rank_dict = {}
+    doc_len_dict = {}
     for term, value in qv.items():
-        idf = inverted_dict[term]['idf']
         docs = inverted_dict[term]['docID']
-        for docid, tf in docs.items():
-            tfidf = idf*tf
+        for docid, tfidf in docs.items():
             d = {}
             if docid in rank_dict:
-                rank_dict[docid] = rank_dict[docid] + value*tfidf
+                rank_dict[docid] += value * tfidf
+                doc_len_dict[docid] += tfidf ** 2
             else:
-                rank_dict[docid] = value*tfidf
+                rank_dict[docid] = value * tfidf
+                doc_len_dict[docid] = tfidf ** 2
     for doc_id, score in rank_dict.items():
-        rank_dict[doc_id] = score/get_doc_len[int(doc_id)]
+        rank_dict[doc_id] = score/math.sqrt(doc_len_dict[doc_id])
     d = collections.Counter(rank_dict)
     d = d.most_common(k)
     return d
 
 
 # get feedback
-def get_feedback_vector(query, weight, k):
-    qv = get_vector(query)
-    uqv = unit_vector(qv)
-    rel_d = get_top_k(uqv, k)
+def get_feedback_vector(qv, k):
+    global RO_W
+    rel_d = get_top_k(qv, k)
     for d in rel_d:
         doc_id, s = d
         docv = doc_vector_list[int(doc_id)]
-        udocv = unit_vector(docv)
-        for term, score in udocv.items():
-            score *= weight
+        for term, score in docv.items():
+            score *= RO_W
             score /= k
-            if term in v:
-                v[term] += score
+            if term in qv:
+                qv[term] += score
             else:
-                v[term] = score
-    return v
+                qv[term] = score
+    qv = unit_vector(qv)
+    return qv
 
 
-def make_ans(ro_w, term_w, rel_k, k):
+def make_ans():
+    global RO_W, QUERY_K, REL_K
     ans_dict = {}
     for raw_query in test_list:
         query = raw_query['concepts']
-        expanded_vector = get_feedback_vector(query, ro_w, rel_k)
-        # for term, score in expanded_vector.items():
-        #     if re.search('[a-zA-Z]', term):
-        #         score = score * term_w
-        #     elif len(term) == 2:
-        #         score = score * term_w
-        #     expanded_vector[term] = score
-        eqv = unit_vector(expanded_vector)
-        ans_dict[raw_query['number']] = get_top_k(eqv, k)
+        qv = get_vector(query)
+        expanded_vector = get_feedback_vector(qv, REL_K)
+        ans_dict[raw_query['number']] = get_top_k(expanded_vector, QUERY_K)
     ans_f = open('ans.txt', 'w')
     for number, ans_list in ans_dict.items():
         for ans in ans_list:
@@ -208,7 +199,17 @@ def make_ans(ro_w, term_w, rel_k, k):
             ans_f.write(answer)
     ans_f.close()
 
-make_ans(5, 2, 10, 100)
+
+def main():
+    global RO_W, TERM_W, REL_K, K
+    RO_W = 1.5
+    TERM_W = 2
+    REL_K = 10
+    K = 100
+    make_ans()
+
+if __name__ == '__main__':
+    main()
 
 
 # for training
