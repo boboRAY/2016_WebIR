@@ -2,26 +2,55 @@ import math
 import xmltodict
 import collections
 import re
+import sys
+import getopt 
+
+ranked_list_path = ''
+query_file_path = ''
+model_dir_path = ''
+NTCIR_dir_path = ''
+FEEDBACK_ON = False
+
+# Read command line args
+myopts, args = getopt.getopt(sys.argv[1:], "ri:o:m:d:")
+
+###############################
+# o == option
+# a == argument passed to the o
+###############################
+for o, a in myopts:
+    if o == '-i':
+        query_file_path = a
+    elif o == '-o':
+        ranked_list_path = a
+    elif o == '-m':
+        model_dir_path = a
+    elif o == '-d':
+        NTCIR_dir_path = a
+    elif o == '-r':
+        FEEDBACK_ON = True
+    else:
+        pass
 
 
 RO_W = 0.8
 QUERY_K = 100
-REL_K = 50
+REL_K = 80
 TOTAL_FILE_NUMBER = 46972
 
-with open('model/inverted-file', 'r') as f:
+with open(model_dir_path+'inverted-file', 'r') as f:
     inverted_list = f.readlines()
 
-with open('model/vocab.all') as f:
+with open(model_dir_path+'vocab.all') as f:
     vocab_list = f.read().splitlines()
 
-with open('model/file-list', 'r') as f:
+with open(model_dir_path+'file-list', 'r') as f:
     doc_list = f.read().splitlines()
 
 with open('stoplist', 'r') as f:
     stop_list = f.read().splitlines()
 
-query = open('queries/query-test.xml', 'r').read()
+query = open(query_file_path, 'r').read()
 q = xmltodict.parse(query)
 test_list = q['xml']['topic']
 
@@ -202,10 +231,12 @@ def make_ans():
         query += ' '
         query += raw_query['question']
         qv = get_vector(query)
-        ans_dict[raw_query['number']] = get_top_k(qv, QUERY_K)
-        expanded_vector = get_feedback_vector(qv, REL_K)
-        ans_dict[raw_query['number']] = get_top_k(expanded_vector, QUERY_K)
-    ans_f = open('ans.txt', 'w')
+        if FEEDBACK_ON:
+            expanded_vector = get_feedback_vector(qv, REL_K)
+            ans_dict[raw_query['number']] = get_top_k(expanded_vector, QUERY_K)
+        else:
+            ans_dict[raw_query['number']] = get_top_k(qv, QUERY_K)
+    ans_f = open(ranked_list_path, 'w')
 
     # write answer to file
     for number, ans_list in ans_dict.items():
@@ -223,4 +254,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
