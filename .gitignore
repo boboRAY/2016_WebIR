@@ -6,3 +6,4 @@ hw1/setup.sh
 hw2/data
 hw2/mid
 hw2/small_list
+hw2/lib/__pycache__

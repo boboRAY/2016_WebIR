@@ -1,5 +1,7 @@
+# coding=UTF-8
 from lib.porterStemmer import PorterStemmer
 import os
+import re
 
 # list all file
 p = []
@@ -15,45 +17,47 @@ for t in ['Train', 'Test', 'Unlabel']:
                 f.write(path+'\n')
     f.close()
 
-TRAIN_F = open('Train_list','r')
-TEST_F = open('Test_list','r')
-UNLABEL_F = open('Unlabel_list','r')
-
-# read raw data 
-f = open('28.txt')
-raw_str = f.read()
-
-# remove special character
-raw_str = raw_str.replace("'",'').replace('.','').replace(',','')
-
-# read stop word
-f_stopwords = open('stop_words.txt')
-raw_stopwords = f_stopwords.read()
-stopwords = raw_stopwords.lower().splitlines()
+with open('Train_list', 'r') as f:
+    train_list = f.read().split()
 
 
-# lowercase
-raw_str = raw_str.lower()
+def get_tokens(path):
+    # read raw data
+    f = open(path)
+    raw_str = f.read()
 
-#tokenize
-tokens = raw_str.split()
+    # delete non-letters
+    regex = re.compile('[^a-zA-Z0-9]')
+    raw_str = regex.sub(' ', raw_str)
 
-#stemming
-stemmer = PorterStemmer()
-for n,token in enumerate(tokens):
-    new_token = stemmer.stem(token,0,len(token)-1)
-    tokens[n] = new_token    
-    
-# stemming for stop word
-# remove stop word from tokens
-for n,stopword in enumerate(stopwords):
-    new_stopword = stemmer.stem(stopword,0,len(stopword)-1)
-    while new_stopword in tokens:
-        tokens.remove(new_stopword)
-'''
-#save result as txt file
-result = open('result.txt','w')
-for  token in tokens:
-    result.write(token+'\n')
-result.close()
-'''
+    # read stop word
+    f_stopwords = open('stop_words')
+    raw_stopwords = f_stopwords.read()
+    stopwords = raw_stopwords.lower().splitlines()
+
+    # lowercase
+    raw_str = raw_str.lower()
+
+    # tokenize
+    tokens = raw_str.split()
+
+    # stemming
+    stemmer = PorterStemmer()
+    for n, token in enumerate(tokens):
+        new_token = stemmer.stem(token, 0, len(token)-1)
+        tokens[n] = new_token
+
+    # stemming for stop word
+    # remove stop word from tokens
+    for n, stopword in enumerate(stopwords):
+        new_stopword = stemmer.stem(stopword, 0, len(stopword)-1)
+        while new_stopword in tokens:
+            tokens.remove(new_stopword)
+    return tokens
+
+
+# set up dictionary
+words_set = set()
+for p in train_list:
+    print(p)
+    words_set.union(set(get_tokens(p)))
