@@ -31,7 +31,7 @@ def get_tokens(path):
     raw_str = f.read()
 
     # delete non-letters
-    regex = re.compile('[^a-zA-Z0-9]')
+    regex = re.compile('[^a-zA-Z]')
     raw_str = regex.sub(' ', raw_str)
 
     # read stop word
@@ -47,20 +47,22 @@ def get_tokens(path):
 
     # stemming
     stemmer = PorterStemmer()
-    for n, token in enumerate(tokens):
+    for n in range(len(tokens)):
+        token = tokens[n]
         new_token = stemmer.stem(token, 0, len(token)-1)
         tokens[n] = new_token
+
+    new_tokens = [x for x in tokens if len(x) > 2]
 
     # stemming for stop word
     # remove stop word from tokens
     for n, stopword in enumerate(stopwords):
         new_stopword = stemmer.stem(stopword, 0, len(stopword)-1)
-        while new_stopword in tokens:
-            tokens.remove(new_stopword)
-    return tokens
+        while new_stopword in new_tokens:
+            new_tokens.remove(new_stopword)
+    return new_tokens
 
 # set up term ditc
-clase_term_dict = {}  # clase : {doc_num, tf_sum, terms : {df, all_tf ,term:[]}}
 term_clase_dict = {}  # term : {all_df, 'dfs': {clase: df}}
 for clase, docs in train_docs.items():
     clase_dict = {'tf_sum': 0}
@@ -70,8 +72,16 @@ for clase, docs in train_docs.items():
         for t in tokens:
             # term_clase_dict
             if t not in term_clase_dict:
-                term_clase_dict[t] = {'all_df': 1, 'dfs': {clase: 1}}
+                term_clase_dict[t] = {'all_df': 1, 'all_tf': 1,
+                                      'tfs': {clase: 1}, 'dfs': {clase: 1}}
             else:
+                # tfs
+                term_clase_dict[t]['all_tf'] += 1
+                if clase not in term_clase_dict[t]['tfs']:
+                    term_clase_dict[t]['tfs'][clase] = 1
+                else:
+                    term_clase_dict[t]['tfs'][clase] += 1
+                # dfs
                 if t not in term_in_p:
                     term_clase_dict[t]['all_df'] += 1
                 if clase not in term_clase_dict[t]['dfs']:
@@ -79,22 +89,7 @@ for clase, docs in train_docs.items():
                 else:
                     if t not in term_in_p:
                         term_clase_dict[t]['dfs'][clase] += 1
-
-            # clase_term_dict
-            clase_dict['tf_sum'] += 1  # total term count in clase +1
-            if t not in clase_dict:
-                clase_dict[t] = {'df': 1, 'tf': 1, 'docs': {p: 1}}
-            else:
-                clase_dict[t]['tf'] += 1
-                docs = clase_dict[t]['docs']
-                if t not in term_in_p:
-                    clase_dict[t]['df'] += 1
-                    docs[p] = 1
-                else:
-                    docs[p] += 1
-                    clase_dict[t]['docs'] = docs
             term_in_p.add(t)
-    clase_term_dict[clase] = clase_dict
 
 CLASE_COUNT = len(TRAIN_CLASE_DOCS_COUNTS)
 llr_dict = {clase: {} for clase in train_docs.keys()}
@@ -120,13 +115,15 @@ for term, t_dict in term_clase_dict.items():
         l_ratio = -2*(h1-h2)
         llr_dict[clase][term] = l_ratio
 
-# backup_llr_dict = llr_dict
 # feature selection
-# FEATURE_COUNT = len(term_clase_dict.keys())//40
-FEATURE_COUNT = 500
+FEATURE_COUNT = 1000
 feature_set = set()
 rounds = list(train_docs.keys())
 turn = 0
+# for clase in train_docs.keys():
+#     terms = collections.Counter(llr_dict[clase])
+#     feature_set = feature_set.union(set(dict(terms.most_common(30)).keys()))
+
 while len(feature_set) < FEATURE_COUNT:
     clase = rounds[turn]
     terms = llr_dict[clase]
@@ -137,8 +134,13 @@ while len(feature_set) < FEATURE_COUNT:
     del llr_dict[clase][new_feature]
     # turn = (turn + 1) % 20
 
+clase_feature_tf_dict = {clase: 0 for clase in train_docs.keys()}
+for t in feature_set:
+    for clase, num in term_clase_dict[t]['tfs'].items():
+        clase_feature_tf_dict[clase] += num
 
-def naive_bayes(doc_path):
+
+def df_naive_bayes(doc_path, feature_set):
     # get doc vector
     vector = set()
     tokens = get_tokens(doc_path)
@@ -148,30 +150,40 @@ def naive_bayes(doc_path):
 
     probs = {clase: 0.0 for clase in train_docs.keys()}
     # term_clase_dict = {}  term : {all_df, 'dfs': {clase: df}}
-    for t in vector:
-        for clase, df in term_clase_dict[t]['dfs'].items():
-            probs[clase] += math.log(df/TRAIN_CLASE_DOCS_COUNTS[clase])
+    for t in feature_set:
+        # for clase, df in term_clase_dict[t]['dfs'].items():
+        for clase in train_docs.keys():
+            prob = 0
+            if clase in term_clase_dict[t]['dfs']:
+                df = term_clase_dict[t]['dfs'][clase] + 1
+            else:
+                df = 1
+            prob = df/(TRAIN_CLASE_DOCS_COUNTS[clase]+2)
+            if t in vector:
+                prob = math.log(prob)
+            else:
+                prob = math.log(1-prob)
+            probs[clase] += prob
     for clase, num in TRAIN_CLASE_DOCS_COUNTS.items():
         probs[clase] += math.log(num/TRAIN_DOCS_COUNT)
     return max(probs.items(), key=operator.itemgetter(1))[0]
-
 
 # list all file
 test_docs = {}
 root = 'data/20news/Test/'
 answer_dict = {}
 for d in os.listdir(root):
-    answer_dict[int(d)] = naive_bayes(root+d)
+    answer_dict[int(d)] = df_naive_bayes(root+d, feature_set)
 f = open('nb_result', 'w')
 for d in collections.OrderedDict(sorted(answer_dict.items())):
     f.write(str(d)+' '+answer_dict[d]+'\n')
 f.close()
 
-my_ans = open('nb_result','r').read().splitlines()
+my_ans = open('nb_result', 'r').read().splitlines()
 ans_test = open('data/ans.test').read().splitlines()
 
 count = 0
-for a, b in zip(my_ans,ans_test):
+for a, b in zip(my_ans, ans_test):
     if a == b:
         count += 1
-print(count)
+print(count/len(ans_test))
