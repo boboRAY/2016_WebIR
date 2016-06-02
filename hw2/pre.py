@@ -2,28 +2,8 @@
 from lib.porterStemmer import PorterStemmer
 import os
 import re
+import json
 import math
-import operator
-import collections
-
-
-# list all file
-train_docs = {}
-# for t in ['Train/', 'Test/', 'Unlabel/']:
-t = 'Train/'
-root = 'data/20news/' + t
-for d in os.listdir(root):
-    doc_ids = {}
-    for fn in os.listdir(root+d):
-        path = root + d + '/' + fn
-        doc_ids[fn] = path
-    train_docs[d] = doc_ids
-
-TRAIN_CLASE_DOCS_COUNTS = {}
-for clase, docs in train_docs.items():
-    TRAIN_CLASE_DOCS_COUNTS[clase] = len(docs)
-TRAIN_DOCS_COUNT = sum(TRAIN_CLASE_DOCS_COUNTS.values())
-
 
 # read stop word
 f_stopwords = open('stop_words')
@@ -34,6 +14,7 @@ stopwords = set()
 for w in raw_stopwords:
     new_w = stemmer.stem(w, 0, len(w)-1)
     stopwords.add(w)
+
 
 def get_tokens(path):
     # read raw data
@@ -54,76 +35,76 @@ def get_tokens(path):
 
     # stemming
     stemmer = PorterStemmer()
-    new_tokens = []
+    new_tokens = {}
     for token in tokens:
         new_token = stemmer.stem(token, 0, len(token)-1)
-        if new_token not in stopwords and len(new_token) > 3:
-            new_tokens.append(new_token)
-
+        if new_token not in stopwords and len(new_token) > 2:
+            new_tokens[new_token] = new_tokens.get(new_token,0) + 1
     return new_tokens
+
+# list all file
+train_docs = {}
+t = 'Train/'
+root = 'data/20news/' + t
+for d in os.listdir(root):
+    doc_ids = {}
+    for fn in os.listdir(root+d):
+        path = root + d + '/' + fn
+        doc_ids[fn] = get_tokens(path)
+    train_docs[d] = doc_ids
+
+with open('pre/train.json', 'w') as fp:
+    json.dump(train_docs, fp)
+
+anss = open('ans.test').read().split()
+
+test_docs = {}
+t = 'Test/'
+root = 'data/20news/' + t
+for d in os.listdir(root):
+    test_docs[d] = get_tokens(path)
+
+with open('pre/test.json','w') as fp:
+    json.dump(test_docs, fp)
+
+unlabel_docs = {}
+t = 'Unlabel/'
+root = 'data/20news/' + t
+for d in os.listdir(root):
+    doc_ids = {}
+    path = root+d
+    doc_ids[fn] = get_tokens(path)
+    test_docs[d] = doc_ids
+
+with open('pre/unlabel.json', 'w') as fp:
+    json.dump(test_docs, fp)
+
+TRAIN_CLASE_DOCS_COUNTS = {}
+for clase, docs in train_docs.items():
+    TRAIN_CLASE_DOCS_COUNTS[clase] = len(docs)
+TRAIN_DOCS_COUNT = sum(TRAIN_CLASE_DOCS_COUNTS.values())
 
 # set up term ditc
 term_clase_dict = {}  # term : {all_df, 'dfs': {clase: df}}
 clase_all_tf = {clase: 0 for clase in TRAIN_CLASE_DOCS_COUNTS.keys()}
+
 for clase, docs in train_docs.items():
-    for d_id, p in docs.items():
-        tokens = get_tokens(p)
-        term_in_p = set()
-        for t in tokens:
+    for d_id, tokens in docs.items():
+        for token, tf in tokens.items():
             clase_all_tf[clase] += 1
             # term_clase_dict
-            if t not in term_clase_dict:
-                term_clase_dict[t] = {'all_tf': 1, 'tfs': {clase: 1}}
+            if token not in term_clase_dict:
+                term_clase_dict[token] = {'all_tf': tf, 'tfs': {clase: tf}}
             else:
                 # tfs
-                term_clase_dict[t]['all_tf'] += 1
-                if clase not in term_clase_dict[t]['tfs']:
-                    term_clase_dict[t]['tfs'][clase] = 1
+                term_clase_dict[token]['all_tf'] += tf
+                if clase not in term_clase_dict[token]['tfs']:
+                    term_clase_dict[token]['tfs'][clase] = tf
                 else:
-                    term_clase_dict[t]['tfs'][clase] += 1
-                term_in_p.add(t)
+                    term_clase_dict[token]['tfs'][clase] += tf
 
+with open('pre/train_term_clase.json','w') as fp:
+    json.dump(term_clase_dict, fp)
+with open('pre/train_all_tf.json','w') as fp:
+    json.dump(clase_all_tf, fp)
 
-def train_parameter():
-    len_v = len(term_clase_dict)
-    clase_theta_dict = {clase: {'terms': {},
-                        'prior':
-                       math.log((TRAIN_CLASE_DOCS_COUNTS[clase]+1)/(TRAIN_DOCS_COUNT+20))}
-                        for clase in TRAIN_CLASE_DOCS_COUNTS.keys()}
-    for term, dic in term_clase_dict.items():
-        for clase in clase_theta_dict:
-            tf = dic['tfs'].get(clase, 0)
-            clase_theta_dict[clase]['terms'][term] = math.log((1+tf)/(clase_all_tf[clase] + len_v))
-    return clase_theta_dict
-
-
-parameters = train_parameter()
-
-
-def naive_bayes(doc_path, parameters):
-    tokens = get_tokens(doc_path)
-    probs = {clase: parameters[clase]['prior'] for clase in parameters.keys()}
-    for token in tokens:
-        for clase in TRAIN_CLASE_DOCS_COUNTS.keys():
-            probs[clase] += parameters[clase]['terms'].get(token, 0)
-    return max(probs.items(), key=operator.itemgetter(1))[0]
-
-# list all file
-test_docs = {}
-root = 'data/20news/Test/'
-answer_dict = {}
-for d in os.listdir(root):
-    answer_dict[int(d)] = naive_bayes(root+d, parameters)
-f = open('nb_result', 'w')
-for d in collections.OrderedDict(sorted(answer_dict.items())):
-    f.write(str(d)+' '+answer_dict[d]+'\n')
-f.close()
-
-my_ans = open('nb_result', 'r').read().splitlines()
-ans_test = open('data/ans.test').read().splitlines()
-
-count = 0
-for a, b in zip(my_ans, ans_test):
-    if a == b:
-        count += 1
-print(count/len(ans_test))
