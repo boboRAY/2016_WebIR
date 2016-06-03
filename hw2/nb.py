@@ -1,31 +1,18 @@
 # coding=UTF-8
-import os
 import operator
 import collections
 import json
 import math
 
-
-# list all file
-train_docs = {}
-# for t in ['Train/', 'Test/', 'Unlabel/']:
-t = 'Train/'
-root = 'data/20news/' + t
-for d in os.listdir(root):
-    doc_ids = {}
-    for fn in os.listdir(root+d):
-        path = root + d + '/' + fn
-        doc_ids[fn] = path
-    train_docs[d] = doc_ids
-
-TRAIN_CLASE_DOCS_COUNTS = {}
-for clase, docs in train_docs.items():
-    TRAIN_CLASE_DOCS_COUNTS[clase] = len(docs)
-TRAIN_DOCS_COUNT = sum(TRAIN_CLASE_DOCS_COUNTS.values())
-
 term_clase_dict = json.load(open('pre/train_term_clase.json', 'r'))
 clase_all_tf = json.load(open('pre/train_all_tf.json', 'r'))
 test_tokens = json.load(open('pre/test.json'))
+train_tokens = json.load(open('pre/train.json'))
+
+TRAIN_CLASE_DOCS_COUNTS = {}
+for clase, docs in train_tokens.items():
+    TRAIN_CLASE_DOCS_COUNTS[clase] = len(docs)
+TRAIN_DOCS_COUNT = sum(TRAIN_CLASE_DOCS_COUNTS.values())
 
 
 def train_parameter():

@@ -3,7 +3,6 @@ from lib.porterStemmer import PorterStemmer
 import os
 import re
 import json
-import math
 
 # read stop word
 f_stopwords = open('stop_words')
@@ -39,7 +38,7 @@ def get_tokens(path):
     for token in tokens:
         new_token = stemmer.stem(token, 0, len(token)-1)
         if new_token not in stopwords and len(new_token) > 2:
-            new_tokens[new_token] = new_tokens.get(new_token,0) + 1
+            new_tokens[new_token] = new_tokens.get(new_token, 0) + 1
     return new_tokens
 
 # list all file
@@ -62,22 +61,19 @@ test_docs = {}
 t = 'Test/'
 root = 'data/20news/' + t
 for d in os.listdir(root):
-    test_docs[d] = get_tokens(path)
+    test_docs[d] = get_tokens(root + d)
 
-with open('pre/test.json','w') as fp:
+with open('pre/test.json', 'w') as fp:
     json.dump(test_docs, fp)
 
 unlabel_docs = {}
 t = 'Unlabel/'
 root = 'data/20news/' + t
 for d in os.listdir(root):
-    doc_ids = {}
-    path = root+d
-    doc_ids[fn] = get_tokens(path)
-    test_docs[d] = doc_ids
+    unlabel_docs[d] = get_tokens(root+d)
 
 with open('pre/unlabel.json', 'w') as fp:
-    json.dump(test_docs, fp)
+    json.dump(unlabel_docs, fp)
 
 TRAIN_CLASE_DOCS_COUNTS = {}
 for clase, docs in train_docs.items():
@@ -87,7 +83,6 @@ TRAIN_DOCS_COUNT = sum(TRAIN_CLASE_DOCS_COUNTS.values())
 # set up term ditc
 term_clase_dict = {}  # term : {all_df, 'dfs': {clase: df}}
 clase_all_tf = {clase: 0 for clase in TRAIN_CLASE_DOCS_COUNTS.keys()}
-
 for clase, docs in train_docs.items():
     for d_id, tokens in docs.items():
         for token, tf in tokens.items():
@@ -103,8 +98,8 @@ for clase, docs in train_docs.items():
                 else:
                     term_clase_dict[token]['tfs'][clase] += tf
 
-with open('pre/train_term_clase.json','w') as fp:
-    json.dump(term_clase_dict, fp)
-with open('pre/train_all_tf.json','w') as fp:
-    json.dump(clase_all_tf, fp)
 
+with open('pre/train_term_clase.json', 'w') as fp:
+    json.dump(term_clase_dict, fp)
+with open('pre/train_all_tf.json', 'w') as fp:
+    json.dump(clase_all_tf, fp)
