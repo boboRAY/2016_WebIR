@@ -70,8 +70,9 @@ unlabel_docs = {}
 t = 'Unlabel/'
 root = 'data/20news/' + t
 for d in os.listdir(root):
-    unlabel_docs[d] = get_tokens(root+d)
-
+    tokens = get_tokens(root+d)
+    if len(tokens):
+        unlabel_docs[d] = tokens
 with open('pre/unlabel.json', 'w') as fp:
     json.dump(unlabel_docs, fp)
 
