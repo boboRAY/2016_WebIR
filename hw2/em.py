@@ -7,6 +7,7 @@ import math
 
 label_term_clase_dict = json.load(open('pre/train_term_clase.json', 'r'))
 clase_all_tf = json.load(open('pre/train_all_tf.json', 'r'))
+
 train_tokens = json.load(open('pre/train.json'))
 test_tokens = json.load(open('pre/test.json'))
 unlabel_tokens = json.load(open('pre/unlabel.json'))
@@ -16,7 +17,6 @@ for clase, docs in train_tokens.items():
     LABEL_CLASE_DOCS_COUNTS[clase] = len(docs)
 LABEL_DOCS_COUNT = sum(LABEL_CLASE_DOCS_COUNTS.values())
 
-# doc_dict = {doc: 0 for doc in unlabel_tokens.keys()}
 u_c_d_prob = {clase: {} for clase in train_tokens.keys()}
 
 
@@ -28,20 +28,22 @@ for d, ts in unlabel_tokens.items():
         dictionary.add(t)
 TERMS_COUNT = len(dictionary)
 
-clase_theta_dict = {clase: {"terms": {}, "prior": 0} for clase in train_tokens.keys()}
+clase_theta_dict = {clase: {"terms": {}, "prior": 0, "null": 0} for clase in train_tokens.keys()}
 
 # use naive to get first u_c_d_prob
-len_v = len(dictionary)
 parameters = {clase: {'terms': {},
-                        'prior':
-                       math.log((LABEL_CLASE_DOCS_COUNTS[clase]+1)/(LABEL_DOCS_COUNT+20))}
-                        for clase in LABEL_CLASE_DOCS_COUNTS.keys()}
+                      'prior':
+                      math.log((LABEL_CLASE_DOCS_COUNTS[clase]+1)/(LABEL_DOCS_COUNT+20))}
+              for clase in LABEL_CLASE_DOCS_COUNTS.keys()}
+
+len_v = len(label_term_clase_dict)
 for clase in clase_theta_dict:
     parameters[clase]['null'] = math.log(1/(clase_all_tf[clase]+len_v))
     for term, dic in label_term_clase_dict.items():
         tf = dic['tfs'].get(clase, 0)
-        parameters[clase]['terms'][term] = math.log((1+tf)/(clase_all_tf[clase] + len_v))
+        parameters[clase]['terms'][term] = math.log((1+tf)/(clase_all_tf[clase]+len_v))
 
+# first e_step
 for doc, tokens in unlabel_tokens.items():
     probs = {clase: 0 for clase in train_tokens.keys()}
     for clase in LABEL_CLASE_DOCS_COUNTS.keys():
@@ -49,7 +51,7 @@ for doc, tokens in unlabel_tokens.items():
         for token, tf in tokens.items():
             if token in label_term_clase_dict:
                 probs[clase] += parameters[clase]['terms'][token] * tf
-            else:
+            elif token in dictionary:
                 probs[clase] += parameters[clase]['null']
     k = max(probs.values())
     for clase, p in probs.items():
@@ -67,10 +69,9 @@ for doc, tokens in unlabel_tokens.items():
 def e_step():
     global u_c_d_prob, clase_theta_dict
     for doc, tokens in unlabel_tokens.items():
-        probs = {clase: 0 for clase in train_tokens.keys()}
-        for clase in train_tokens.keys():
-            probs[clase] = math.log(clase_theta_dict[clase]['prior'])
-            for token, tf in tokens.items():
+        probs = {clase: math.log(clase_theta_dict[clase]['prior']) for clase in train_tokens.keys()}
+        for token, tf in tokens.items():
+            for clase in train_tokens.keys():
                 if token in label_term_clase_dict:
                     probs[clase] += math.log(clase_theta_dict[clase]['terms'][token]) * tf
         k = max(probs.values())
@@ -93,26 +94,30 @@ def m_step():
         down = TERMS_COUNT
         prior = 1 + LABEL_CLASE_DOCS_COUNTS[clase]
         # unlabel
-        for doc, terms in unlabel_tokens.items():
+        for doc, tokens in unlabel_tokens.items():
             prior += u_c_d_prob[clase][doc]
-            for term, tf in terms.items():
-                p = tf*u_c_d_prob[clase][doc] + clase_theta_dict[clase]["terms"].get(term, 0)
-                # if p != 0:
-                clase_theta_dict[clase]["terms"][term] = p
-                down += p
+            for term, tf in tokens.items():
+                up1 = tf*u_c_d_prob[clase][doc]
+                if term in clase_theta_dict[clase]["terms"]:
+                    clase_theta_dict[clase]["terms"][term] += up1
+                else:
+                    clase_theta_dict[clase]["terms"][term] = up1
+                down += up1
         for term, dic in label_term_clase_dict.items():
-            p = clase_theta_dict[clase]['terms'].get(term, 0) + dic['tfs'].get(clase, 0)
-            # if p != 0:
-            clase_theta_dict[clase]["terms"][term] = p
-            down += p
-        for term, tp in clase_theta_dict[clase]["terms"].items():
-            tp += 1
-            tp /= down
-            clase_theta_dict[clase]["terms"][term] = tp
+            up2 = dic['tfs'].get(clase, 0)
+            if term in clase_theta_dict[clase]["terms"]:
+                clase_theta_dict[clase]["terms"][term] += up2
+            else:
+                clase_theta_dict[clase]["terms"][term] = up2
+            down += up2
+        for term, up in clase_theta_dict[clase]["terms"].items():
+            up += 1
+            up /= down
+            clase_theta_dict[clase]["terms"][term] = up
         clase_theta_dict[clase]["null"] = 1/down
-
         #prior
-        clase_theta_dict[clase]["prior"] = (prior + 1)/(20 + len(unlabel_tokens) + LABEL_DOCS_COUNT)
+        clase_theta_dict[clase]["prior"] = prior/(20 + len(unlabel_tokens) + LABEL_DOCS_COUNT)
+
 
 def naive_bayes(tokens):
     probs = {clase: math.log(clase_theta_dict[clase]['prior']) for clase in clase_theta_dict.keys()}
@@ -120,9 +125,10 @@ def naive_bayes(tokens):
         for clase in LABEL_CLASE_DOCS_COUNTS.keys():
             if token in clase_theta_dict[clase]["terms"]:
                 probs[clase] += tf*math.log(clase_theta_dict[clase]['terms'][token])
-            else:
+            elif token in dictionary:
                 probs[clase] += tf*clase_theta_dict[clase]["null"]
     return max(probs.items(), key=operator.itemgetter(1))[0]
+
 
 def test():
     # test
@@ -143,7 +149,8 @@ def test():
             count += 1
     print(count/len(ans_test))
 
-for i in range(1, 10):
+m_step()
+for i in range(1, 50):
     print("e_step")
     e_step()
     print("m_step")
