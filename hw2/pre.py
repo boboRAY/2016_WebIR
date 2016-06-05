@@ -3,6 +3,22 @@ from lib.porterStemmer import PorterStemmer
 import os
 import re
 import json
+import sys
+import getopt
+
+# Read command line args
+myopts, args = getopt.getopt(sys.argv[1:], "ri:o:m:d:")
+
+###############################
+# o == option
+# a == argument passed to the o
+###############################
+for o, a in myopts:
+    if o == '-i':
+        data_path = a
+    else:
+        pass
+
 
 # read stop word
 f_stopwords = open('stop_words')
@@ -44,7 +60,7 @@ def get_tokens(path):
 # list all file
 train_docs = {}
 t = 'Train/'
-root = 'data/20news/' + t
+root = data_path + t
 for d in os.listdir(root):
     doc_ids = {}
     for fn in os.listdir(root+d):
@@ -59,7 +75,7 @@ anss = open('ans.test').read().split()
 
 test_docs = {}
 t = 'Test/'
-root = 'data/20news/' + t
+root = data_path + t
 for d in os.listdir(root):
     test_docs[d] = get_tokens(root + d)
 
@@ -68,7 +84,7 @@ with open('pre/test.json', 'w') as fp:
 
 unlabel_docs = {}
 t = 'Unlabel/'
-root = 'data/20news/' + t
+root = data_path + t
 for d in os.listdir(root):
     tokens = get_tokens(root+d)
     if len(tokens):

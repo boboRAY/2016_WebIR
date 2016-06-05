@@ -18,7 +18,7 @@ for clase, docs in train_tokens.items():
 LABEL_DOCS_COUNT = sum(LABEL_CLASE_DOCS_COUNTS.values())
 
 u_c_d_prob = {clase: {} for clase in train_tokens.keys()}
-
+l_c_d_prob = {path: {clase :{doc: float(int(path == clase)) for doc in train_tokens[path]} for clase in train_tokens} for path in train_tokens}
 
 dictionary = set()
 for t in label_term_clase_dict.keys():
@@ -64,19 +64,22 @@ for doc, tokens in unlabel_tokens.items():
         p /= total
         u_c_d_prob[clase][doc] = p
 
-
-# goal: update u_c_d_prob
+# goal: update u_c_d_prob, l_c_d_prob
 def e_step():
-    global u_c_d_prob, clase_theta_dict
+    global u_c_d_prob,l_c_d_prob, clase_theta_dict
+    u_c_d_prob = {clase: {} for clase in train_tokens.keys()}
+    l_c_d_prob = {path: {clase :{doc: float(int(path == clase)) for doc in train_tokens[path]} for clase in train_tokens} for path in train_tokens}
     for doc, tokens in unlabel_tokens.items():
         probs = {clase: math.log(clase_theta_dict[clase]['prior']) for clase in train_tokens.keys()}
         for token, tf in tokens.items():
             for clase in train_tokens.keys():
-                if token in label_term_clase_dict:
+                if token in clase_theta_dict[clase]['terms']:
                     probs[clase] += math.log(clase_theta_dict[clase]['terms'][token]) * tf
+                else:
+                    probs[clase] += math.log(clase_theta_dict[clase]['null'])
         k = max(probs.values())
         for clase, p in probs.items():
-            if p-k < -15:
+            if p-k < -20:
                 probs[clase] = 0
             else:
                 probs[clase] = math.exp(p-k)
@@ -85,14 +88,34 @@ def e_step():
             p /= total
             u_c_d_prob[clase][doc] = p
 
+    for c, docs in train_tokens.items():
+        for doc, tokens in docs.items():
+            probs = {clase: math.log(clase_theta_dict[clase]['prior']) for clase in train_tokens.keys()}
+            for token, tf in tokens.items():
+                if token in clase_theta_dict[clase]['terms']:
+                    probs[clase] += math.log(clase_theta_dict[clase]['terms'][token]) * tf
+                else:
+                    probs[clase] += math.log(clase_theta_dict[clase]['null'])
+            k = max(probs.values())
+            for clase, p in probs.items():
+                if p-k < -20:
+                    probs[clase] = 0
+                else:
+                    probs[clase] = math.exp(p-k)
+            total = sum(probs.values())
+            for clase, p in probs.items():
+                p /= total
+                l_c_d_prob[c][clase][doc] = p
 
 # goal: update clase_theta_dict
 def m_step():
-    global clase_theta_dict, TERMS_COUNT
+    global clase_theta_dict, TERMS_COUNT, u_c_d_prob, l_c_d_prob
+    clase_theta_dict = {clase: {"terms": {}, "prior": 0, "null": 0} for clase in train_tokens.keys()}
     # unlabel
-    for clase, terms in u_c_d_prob.items():  # class
+    for clase, _ in u_c_d_prob.items():  # class
         down = TERMS_COUNT
-        prior = 1 + LABEL_CLASE_DOCS_COUNTS[clase]
+        # prior = 1 + LABEL_CLASE_DOCS_COUNTS[clase]
+        prior = 1
         # unlabel
         for doc, tokens in unlabel_tokens.items():
             prior += u_c_d_prob[clase][doc]
@@ -103,13 +126,24 @@ def m_step():
                 else:
                     clase_theta_dict[clase]["terms"][term] = up1
                 down += up1
-        for term, dic in label_term_clase_dict.items():
-            up2 = dic['tfs'].get(clase, 0)
-            if term in clase_theta_dict[clase]["terms"]:
-                clase_theta_dict[clase]["terms"][term] += up2
-            else:
-                clase_theta_dict[clase]["terms"][term] = up2
-            down += up2
+        # label
+        for c, docs in train_tokens.items():
+            for doc, tokens in docs.items():
+                prior += l_c_d_prob[c][clase][doc]
+                for term, tf in tokens.items():
+                    up2 = tf*l_c_d_prob[c][clase][doc]
+                    if term in clase_theta_dict[clase]["terms"]:
+                        clase_theta_dict[clase]["terms"][term] += up2
+                    else:
+                        clase_theta_dict[clase]["terms"][term] = up2
+                        down += up2
+        # for term, dic in label_term_clase_dict.items():
+        #     up2 = dic['tfs'].get(clase, 0)
+        #     if term in clase_theta_dict[clase]["terms"]:
+        #         clase_theta_dict[clase]["terms"][term] += up2
+        #     else:
+        #         clase_theta_dict[clase]["terms"][term] = up2
+        #     down += up2
         for term, up in clase_theta_dict[clase]["terms"].items():
             up += 1
             up /= down

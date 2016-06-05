@@ -1,8 +1,31 @@
 # coding=UTF-8
+from lib.porterStemmer import PorterStemmer
+import os
+import re
 import operator
 import collections
 import json
 import math
+import sys
+import getopt
+
+# Read command line args
+myopts, args = getopt.getopt(sys.argv[1:], "ri:o:m:d:")
+
+###############################
+# o == option
+# a == argument passed to the o
+###############################
+for o, a in myopts:
+    if o == '-i':
+        data_path = a
+    elif o == '-o':
+        output_path = a
+    elif o == '-n':
+        label_data_size = a
+    else:
+        pass
+
 
 term_clase_dict = json.load(open('pre/train_term_clase.json', 'r'))
 clase_all_tf = json.load(open('pre/train_all_tf.json', 'r'))
@@ -41,12 +64,12 @@ def naive_bayes(tokens, parameters):
 answer_dict = {}
 for tid, tokens in test_tokens.items():
     answer_dict[int(tid)] = naive_bayes(tokens, parameters)
-f = open('nb_result', 'w')
+f = open(output_path, 'w')
 for d in collections.OrderedDict(sorted(answer_dict.items())):
     f.write(str(d)+' '+answer_dict[d]+'\n')
 f.close()
 
-my_ans = open('nb_result', 'r').read().splitlines()
+my_ans = open(output_path, 'r').read().splitlines()
 ans_test = open('ans.test').read().splitlines()
 
 count = 0
