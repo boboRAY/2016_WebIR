@@ -9,6 +9,7 @@ import math
 import sys
 import getopt
 
+label_data_size = 1000
 # Read command line args
 myopts, args = getopt.getopt(sys.argv[1:], "ri:o:n:")
 
@@ -96,11 +97,11 @@ for d in collections.OrderedDict(sorted(answer_dict.items())):
     f.write(str(d)+' '+answer_dict[d]+'\n')
 f.close()
 
-my_ans = open(output_path, 'r').read().splitlines()
-ans_test = open('ans.test').read().splitlines()
+# my_ans = open('nb_result', 'r').read().splitlines()
+# ans_test = open('ans.test').read().splitlines()
 
-count = 0
-for a, b in zip(my_ans, ans_test):
-    if a == b:
-        count += 1
-print(count/len(ans_test))
+# count = 0
+# for a, b in zip(my_ans, ans_test):
+#     if a == b:
+#         count += 1
+# print(count/len(ans_test))

@@ -5,8 +5,10 @@ import json
 import math
 import sys
 import getopt
+import os
 
 
+label_data_size = 1000
 # Read command line args
 myopts, args = getopt.getopt(sys.argv[1:], "ri:o:n:")
 
@@ -216,24 +218,23 @@ def test():
     answer_dict = {}
     for tid, tokens in test_tokens.items():
         answer_dict[int(tid)] = naive_bayes(tokens)
-    f = open('nb_result', 'w')
+    f = open(output_path, 'w')
     for d in collections.OrderedDict(sorted(answer_dict.items())):
         f.write(str(d)+' '+answer_dict[d]+'\n')
     f.close()
 
-    my_ans = open('nb_result', 'r').read().splitlines()
-    ans_test = open('ans.test').read().splitlines()
+    # my_ans = open('nb_result', 'r').read().splitlines()
+    # ans_test = open('ans.test').read().splitlines()
 
-    count = 0
-    for a, b in zip(my_ans, ans_test):
-        if a == b:
-            count += 1
-    print(count/len(ans_test))
+    # count = 0
+    # for a, b in zip(my_ans, ans_test):
+    #     if a == b:
+    #         count += 1
+    # print(count/len(ans_test))
 
 m_step()
 for i in range(1, 5):
-    print("e_step")
     e_step()
-    print("m_step")
     m_step()
-    test()
+
+test()
