@@ -10,7 +10,7 @@ import sys
 import getopt
 
 # Read command line args
-myopts, args = getopt.getopt(sys.argv[1:], "ri:o:m:d:")
+myopts, args = getopt.getopt(sys.argv[1:], "ri:o:n:")
 
 ###############################
 # o == option
@@ -22,7 +22,7 @@ for o, a in myopts:
     elif o == '-o':
         output_path = a
     elif o == '-n':
-        label_data_size = a
+        label_data_size = int(a)
     else:
         pass
 
@@ -31,6 +31,33 @@ term_clase_dict = json.load(open('pre/train_term_clase.json', 'r'))
 clase_all_tf = json.load(open('pre/train_all_tf.json', 'r'))
 test_tokens = json.load(open('pre/test.json'))
 train_tokens = json.load(open('pre/train.json'))
+
+
+# list all file
+train_docs = {}
+t = 'Train/'
+root = data_path + t
+for d in os.listdir(root):
+    doc_ids = []
+    for fn in os.listdir(root+d):
+        doc_ids.append(fn)
+    train_docs[d] = doc_ids
+
+for d, docs in train_docs.items():
+    train_docs[d] = docs[:label_data_size]
+
+for clase, docs in train_tokens.items():
+    for doc, tokens in docs.items():
+        for token, tf in tokens.items():
+            if doc not in train_docs[clase]:
+                term_clase_dict[token]['all_tf'] -= tf
+                term_clase_dict[token]['tfs'][clase] -= tf
+
+news = {clase: {} for clase in train_docs}
+for clase, docs in train_docs.items():
+    for doc in docs:
+        news[clase][doc] = train_tokens[clase][doc]
+train_tokens = news
 
 TRAIN_CLASE_DOCS_COUNTS = {}
 for clase, docs in train_tokens.items():

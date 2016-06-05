@@ -156,7 +156,7 @@
 156 talk.politics.misc
 157 alt.atheism
 158 soc.religion.christian
-159 rec.autos
+159 rec.motorcycles
 160 talk.politics.misc
 161 soc.religion.christian
 162 sci.crypt
@@ -262,7 +262,7 @@
 262 sci.space
 263 soc.religion.christian
 264 sci.space
-265 rec.autos
+265 rec.motorcycles
 266 comp.windows.x
 267 comp.sys.mac.hardware
 268 comp.windows.x
@@ -841,7 +841,7 @@
 841 rec.sport.hockey
 842 sci.space
 843 soc.religion.christian
-844 rec.autos
+844 rec.motorcycles
 845 soc.religion.christian
 846 comp.sys.mac.hardware
 847 rec.sport.hockey
@@ -2196,7 +2196,7 @@
 2196 talk.politics.mideast
 2197 talk.politics.misc
 2198 sci.med
-2199 rec.autos
+2199 rec.motorcycles
 2200 sci.med
 2201 alt.atheism
 2202 comp.os.ms-windows.misc
@@ -3109,7 +3109,7 @@
 3109 rec.motorcycles
 3110 alt.atheism
 3111 comp.sys.mac.hardware
-3112 rec.autos
+3112 rec.motorcycles
 3113 sci.crypt
 3114 soc.religion.christian
 3115 rec.sport.baseball
@@ -3119,7 +3119,7 @@
 3119 soc.religion.christian
 3120 sci.crypt
 3121 comp.windows.x
-3122 rec.autos
+3122 rec.motorcycles
 3123 comp.windows.x
 3124 comp.sys.ibm.pc.hardware
 3125 comp.sys.mac.hardware
@@ -3639,7 +3639,7 @@
 3639 talk.politics.guns
 3640 rec.sport.baseball
 3641 talk.politics.misc
-3642 rec.autos
+3642 rec.motorcycles
 3643 comp.sys.mac.hardware
 3644 comp.sys.mac.hardware
 3645 talk.politics.mideast
@@ -3659,7 +3659,7 @@
 3659 rec.autos
 3660 rec.motorcycles
 3661 talk.politics.mideast
-3662 rec.autos
+3662 rec.motorcycles
 3663 talk.politics.misc
 3664 talk.politics.misc
 3665 talk.politics.misc
@@ -4076,7 +4076,7 @@
 4076 rec.sport.hockey
 4077 sci.med
 4078 comp.sys.mac.hardware
-4079 rec.autos
+4079 rec.motorcycles
 4080 alt.atheism
 4081 talk.politics.misc
 4082 talk.politics.mideast
@@ -4110,7 +4110,7 @@
 4110 sci.med
 4111 rec.autos
 4112 comp.sys.mac.hardware
-4113 rec.autos
+4113 rec.motorcycles
 4114 sci.space
 4115 sci.space
 4116 talk.politics.misc
@@ -4139,7 +4139,7 @@
 4139 sci.med
 4140 sci.med
 4141 sci.med
-4142 rec.autos
+4142 rec.motorcycles
 4143 sci.crypt
 4144 rec.sport.hockey
 4145 comp.windows.x
@@ -4323,7 +4323,7 @@
 4323 comp.sys.mac.hardware
 4324 comp.sys.mac.hardware
 4325 comp.windows.x
-4326 rec.autos
+4326 rec.motorcycles
 4327 sci.crypt
 4328 talk.politics.misc
 4329 sci.med
@@ -4355,7 +4355,7 @@
 4355 talk.politics.mideast
 4356 alt.atheism
 4357 talk.politics.mideast
-4358 rec.autos
+4358 rec.motorcycles
 4359 sci.electronics
 4360 rec.sport.baseball
 4361 sci.crypt
@@ -5623,7 +5623,7 @@
 5623 rec.sport.hockey
 5624 comp.sys.mac.hardware
 5625 soc.religion.christian
-5626 rec.autos
+5626 rec.motorcycles
 5627 comp.sys.ibm.pc.hardware
 5628 sci.crypt
 5629 sci.space
@@ -5789,7 +5789,7 @@
 5789 comp.sys.mac.hardware
 5790 soc.religion.christian
 5791 talk.politics.mideast
-5792 rec.autos
+5792 rec.motorcycles
 5793 rec.motorcycles
 5794 comp.windows.x
 5795 comp.windows.x
@@ -6294,7 +6294,7 @@
 6294 rec.sport.baseball
 6295 sci.crypt
 6296 comp.windows.x
-6297 rec.autos
+6297 rec.motorcycles
 6298 comp.sys.mac.hardware
 6299 soc.religion.christian
 6300 comp.windows.x
@@ -6417,7 +6417,7 @@
 6417 comp.windows.x
 6418 comp.windows.x
 6419 talk.politics.mideast
-6420 rec.autos
+6420 rec.motorcycles
 6421 rec.sport.hockey
 6422 soc.religion.christian
 6423 talk.politics.misc
@@ -7343,7 +7343,7 @@
 7343 comp.sys.mac.hardware
 7344 talk.politics.misc
 7345 talk.politics.mideast
-7346 rec.autos
+7346 rec.motorcycles
 7347 sci.med
 7348 alt.atheism
 7349 rec.autos
@@ -7480,7 +7480,7 @@
 7480 comp.sys.mac.hardware
 7481 comp.sys.mac.hardware
 7482 talk.politics.misc
-7483 rec.autos
+7483 rec.motorcycles
 7484 comp.windows.x
 7485 rec.sport.hockey
 7486 rec.motorcycles
@@ -8227,7 +8227,7 @@
 8227 comp.windows.x
 8228 sci.crypt
 8229 soc.religion.christian
-8230 rec.autos
+8230 rec.motorcycles
 8231 comp.sys.mac.hardware
 8232 talk.politics.guns
 8233 comp.windows.x
@@ -8985,7 +8985,7 @@
 8985 rec.motorcycles
 8986 rec.sport.baseball
 8987 rec.sport.hockey
-8988 rec.autos
+8988 rec.motorcycles
 8989 sci.electronics
 8990 alt.atheism
 8991 rec.autos
